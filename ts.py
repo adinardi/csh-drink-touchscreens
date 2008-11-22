@@ -1,13 +1,23 @@
+# CSH Touchscreen Software
+# Author: Angelo DiNardi (adinardi@csh.rit.edu)
+# Beginnings: Nov 21, 2008
+
 import pygame
 from pygame.locals import *
 import drinkAPI
 import math
 import time
+import sys
 from threading import Thread
 
 pygame.init()
 font = pygame.font.Font(None, 36)
 BUTTONS = {}
+MACHINES = {}
+if (sys.argv[1] == 'ld'):
+	MACHINES = {'Little Drink': 'ld'}
+else:
+	MACHINES = {'Big Drink': 'd', 'Snack': 's'}
 
 def main():
 	global BUTTONS
@@ -25,6 +35,7 @@ def main():
 	current_machine = None
 
 	last_ibutton = ''
+	current_ibutton = ''
 
 	# Initialise screen
 	screen = pygame.display.set_mode((800, 600))
@@ -51,15 +62,22 @@ def main():
 	csh_net = drinkAPI.Network('csh.rit.edu')
 	user = None
 	auth_ibutton = None
+	ready_to_auth = 0
 	# Event loop
 	while 1:
 		if ibuttonreader.ibutton != last_ibutton and ibuttonreader.ibutton != '':
-			drink_state = 2
+			if len(MACHINES) == 1:
+				drink_state = 2.5
+				for i in MACHINES:
+					current_machine = MACHINES[i]
+			else:
+				drink_state = 2
 			CHANGE = 1
 			PROCESSING = 1
 			auth_ibutton = ibuttonreader.ibutton
 			ibuttonreader.ibutton = ''
 			last_ibutton = auth_ibutton
+			current_ibutton = last_ibutton
 
 		for event in pygame.event.get():
 			if event.type == QUIT:
@@ -79,12 +97,29 @@ def main():
 					drink_state = 1
 					CHANGE = 1
 					PROCESSING = 0
+					auth_ibutton = ''
+					current_ibutton = ''
+					last_ibutton = ''
+
+				elif clicked_button[1]['type'] == 'switch':
+					drink_state = 2
+					CHANGE = 1
+					PROCESSING = 1
+					# Set us up to get authenticated again
+					auth_ibutton = current_ibutton
 
 				elif drink_state == 1:
 					if clicked_button[1]['type'] == 'login':
-							drink_state = 2 # Jump right to machine listing ATM
+							drink_state = 2
 							CHANGE = 1
 							PROCESSING = 1
+
+				elif drink_state == 2:
+					if clicked_button[1]['type'] == 'machine':
+						current_machine = clicked_button[1]['item']
+						CHANGE = 1
+						drink_state = 2.5
+						PROCESSING = 1
 
 				elif drink_state == 3:
 					clicked_key = clicked_button[1]
@@ -115,10 +150,12 @@ def main():
 
 			elif drink_state == 2:
 				c = 1
-				render_message(background, "Authenticating...")
+				render_machine_choices(background)
+				render_logout_btn(background)
 
 			elif drink_state == 2.5:
 				c = 1
+				render_message(background, "Authenticating...")
 
 			elif drink_state == 3:
 				render_switch_btn(background)
@@ -126,7 +163,7 @@ def main():
 				render_logout_btn(background)
 
 				inv = system.inventory
-				render_drink_choices(background, inv)
+				render_drink_choices(background, inv, user)
 
 			elif drink_state == 4:
 				c = 1
@@ -136,12 +173,13 @@ def main():
 		pygame.display.flip()
 
 		if PROCESSING == 1:
-			if drink_state == 2 and auth_ibutton is not None:
+			PROCESSING = 0
+			if drink_state == 2.5 and auth_ibutton is not None:
 				# user = drinkAPI.User('', '3b00000e4bbC9301')
 				user = drinkAPI.User('', auth_ibutton)
 				auth_ibutton = None
 				last_ibutton = ''
-				system = drinkAPI.System('Little Drink', 'ld')
+				system = drinkAPI.System('drink', current_machine)
 				authed = user.connect_to_system(system, csh_net)
 				if authed:
 					drink_state = 3
@@ -174,18 +212,24 @@ def render_switch_btn(bg):
 	rect.top = 550
 	BUTTONS[tuple(rect)] = {'type': 'switch'}
 	text = font.render("Switch", 1, (255, 255, 255))
-	switch_btn.blit(text, (10, 10))
+	tr = text.get_rect()
+	tr.centerx = switch_btn.get_rect().centerx
+	tr.centery = switch_btn.get_rect().centery
+	switch_btn.blit(text, tr)
 	bg.blit(switch_btn, rect)
 	return rect
 
 def render_logout_btn(bg):
 	logout = pygame.Surface((200, 50))
 	rect = logout.get_rect()
-	rect.left = 420
+	rect.left = 580
 	rect.top = 550
 	BUTTONS[tuple(rect)] = {'type': 'logout'}
 	text = font.render("Logout", 1, (255, 255, 255))
-	logout.blit(text, (10, 10))
+	tr = text.get_rect()
+	tr.centerx = logout.get_rect().centerx
+	tr.centery = logout.get_rect().centery
+	logout.blit(text, tr)
 	bg.blit(logout, rect)
 	return rect
 
@@ -193,17 +237,18 @@ def render_user_info(bg, user):
 	user_info = pygame.Surface((200, 50))
 	user_info.fill((255, 255, 255))
 	rect = user_info.get_rect()
-	rect.left = 220
+	#rect.left = 220
+	rect.centerx = bg.get_rect().centerx
 	rect.top = 550
-	font = pygame.font.Font(None, 20)
+	font = pygame.font.Font(None, 25)
 	text = font.render("User: " + user.name, 1, (0, 0, 0))
-	user_info.blit(text, (10, 10))
+	user_info.blit(text, (10, 0))
 	text2 = font.render("Credits: " + str(user.get_credits_balance()), 1, (0, 0, 0))
 	user_info.blit(text2, (10, 20))
 	bg.blit(user_info, rect)
 	return rect
 
-def render_drink_choices(bg, choices):
+def render_drink_choices(bg, choices, user):
 	#inv = pygame.Surface((800, 500))
 	#inv.fill((255, 255, 255))
 	#rect = inv.get_rect()
@@ -215,12 +260,20 @@ def render_drink_choices(bg, choices):
 	cur_item_on_row = 0
 	items_per_row = math.ceil(770 / width) - 1
 	cur_row = 0
+	user_credits = user.get_credits_balance()
 	for item in choices:
+		enabled = 1
+		text_color = (255, 255, 255)
+		bg_color = (102, 0, 102)
+		if (item.quantity < 1 or item.price > user_credits):
+			enabled = 0
+			text_color = (187, 187, 187)
+			bg_color = (51, 51, 51)
 		s = pygame.Surface((width - 2, 98))
-		s.fill((0, 0, 0))
-		text = font.render(item.name, 1, (255, 255, 255))
+		s.fill(bg_color)
+		text = font.render(item.name, 1, text_color)
 		s.blit(text, (10, 10))
-		text = font.render(str(item.price), 1, (255, 255, 255))
+		text = font.render(str(item.price), 1, text_color)
 		s.blit(text, (10, 25))
 
 		if (cur_item_on_row > items_per_row):
@@ -232,9 +285,27 @@ def render_drink_choices(bg, choices):
 		sr.top = (cur_row * 100) + 50
 		cur_item_on_row = cur_item_on_row + 1
 		#inv.blit(s, sr)
-		BUTTONS[tuple(sr)] = {'type': 'item', 'item': item}
+		if enabled:
+			BUTTONS[tuple(sr)] = {'type': 'item', 'item': item}
 		bg.blit(s, sr)
 	#bg.blit(inv, rect)
+
+def render_machine_choices(bg):
+	cur_machine = 0
+	for m in MACHINES:
+		ms = pygame.Surface((200, 100))
+		ms.fill((102, 0, 102))
+		text = font.render(m, 1, (255, 255, 255))
+		tr = text.get_rect()
+		tr.centerx = ms.get_rect().centerx
+		tr.centery = ms.get_rect().centery
+		ms.blit(text, tr)
+		rect = ms.get_rect()
+		rect.centerx = bg.get_rect().centerx
+		rect.top = 100 + (200*cur_machine)
+		bg.blit(ms, rect)
+		cur_machine = cur_machine + 1
+		BUTTONS[tuple(rect)] = {'type': 'machine', 'item': MACHINES[m]}
 
 class checkibutton(Thread):
 	def __init__ (self):
