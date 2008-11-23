@@ -22,6 +22,8 @@ else:
 def main():
 	global BUTTONS
 
+	clock = pygame.time.Clock()
+
 	ibuttonreader = checkibutton()
 	ibuttonreader.start()
 	# State
@@ -169,8 +171,8 @@ def main():
 				c = 1
 				render_message(background, "Dropping...")
 
-		screen.blit(background, (0, 0))
-		pygame.display.flip()
+			screen.blit(background, (0, 0))
+			pygame.display.flip()
 
 		if PROCESSING == 1:
 			PROCESSING = 0
@@ -192,7 +194,7 @@ def main():
 				PROCESSING = 0
 				CHANGE = 1
 				drink_state = 1
-
+		clock.tick(20)
 
 def render_message(bg, message):
 	msg = pygame.Surface((800, 400))
