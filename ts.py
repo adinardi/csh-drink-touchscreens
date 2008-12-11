@@ -9,23 +9,48 @@ import math
 import time
 import sys
 from threading import Thread
+import signal
 
 pygame.init()
+pygame.mouse.set_visible(False)
 font = pygame.font.Font(None, 36)
 BUTTONS = {}
 MACHINES = {}
+IMG_SURFACES = {}
+IBUTTONREADER = None
+INFOSYS = None
+
 if (sys.argv[1] == 'ld'):
 	MACHINES = {'Little Drink': 'ld'}
 else:
 	MACHINES = {'Big Drink': 'd', 'Snack': 's'}
 
+def endapp(s1, s2):
+	global IBUTTONREADER, INFOSYS
+	try:
+		IBUTTONREADER.end = True
+	except:	
+		c = 1
+
+	try:
+		INFOSYS.end = True
+	except:
+		c = 1
+
+signal.signal(signal.SIGINT, endapp)
+
 def main():
-	global BUTTONS
+	global BUTTONS, IBUTTONREADER, INFOSYS
 
 	clock = pygame.time.Clock()
 
 	ibuttonreader = checkibutton()
+	IBUTTONREADER = ibuttonreader
 	ibuttonreader.start()
+
+	infosys = readinfosys()
+	INFOSYS = infosys
+	infosys.start()
 	# State
 	# 1 = Unauthenicated
 	# 2 = Select Machine
@@ -65,6 +90,7 @@ def main():
 	user = None
 	auth_ibutton = None
 	ready_to_auth = 0
+	infosys_message = ''
 	# Event loop
 	while 1:
 		if ibuttonreader.ibutton != last_ibutton and ibuttonreader.ibutton != '':
@@ -80,6 +106,10 @@ def main():
 			ibuttonreader.ibutton = ''
 			last_ibutton = auth_ibutton
 			current_ibutton = last_ibutton
+
+		if infosys.message != '':
+			infosys_message = infosys.message
+			CHANGE = 1
 
 		for event in pygame.event.get():
 			if event.type == QUIT:
@@ -147,7 +177,7 @@ def main():
 				#login_btn.blit(text, (10, 10))
 				# background.blit(login_btn, login_btn_rect)
 				#BUTTONS[tuple(login_btn_rect)] = {'type': 'login'}
-				render_message(background, "Touch iButton to continue...")
+				render_message(background, "Touch iButton to continue...\n\n" + infosys_message)
 
 
 			elif drink_state == 2:
@@ -202,8 +232,12 @@ def render_message(bg, message):
 	rect = msg.get_rect()
 	rect.left = 20
 	rect.top = 50
-	text = font.render(message, 1, (0, 0, 0))
-	msg.blit(text, (0, 0))
+	lines = message.splitlines()
+	c = 0
+	for line in lines:
+		text = font.render(line, 1, (0, 0, 0))
+		msg.blit(text, (0, c * 20))
+		c = c + 1
 	bg.blit(msg, rect)
 	return rect
 
@@ -251,6 +285,7 @@ def render_user_info(bg, user):
 	return rect
 
 def render_drink_choices(bg, choices, user):
+	global IMG_SURFACES
 	#inv = pygame.Surface((800, 500))
 	#inv.fill((255, 255, 255))
 	#rect = inv.get_rect()
@@ -273,10 +308,29 @@ def render_drink_choices(bg, choices, user):
 			bg_color = (51, 51, 51)
 		s = pygame.Surface((width - 2, 98))
 		s.fill(bg_color)
+
+		NO_IMG = False
+		img_name = item.name.lower().replace(' ', '').replace('\'', '')
+		if (img_name in IMG_SURFACES):
+			img = IMG_SURFACES[img_name]
+		else:
+			try:
+				img = pygame.image.load("images/" + img_name + ".png")
+				img = pygame.transform.smoothscale(img, (80, 80))
+			except:
+				try:
+					img = pygame.image.load("images/unknown.png")
+					img = pygame.transform.smoothscale(img, (80, 80))
+				except:
+					NO_IMG = True
+			IMG_SURFACES[img_name] = img
+		if (NO_IMG == False):
+			s.blit(img, (10, 10))
+
 		text = font.render(item.name, 1, text_color)
-		s.blit(text, (10, 10))
+		s.blit(text, (100, 10))
 		text = font.render(str(item.price), 1, text_color)
-		s.blit(text, (10, 25))
+		s.blit(text, (100, 25))
 
 		if (cur_item_on_row > items_per_row):
 			# reset us to the next row, pos 1
@@ -309,12 +363,36 @@ def render_machine_choices(bg):
 		cur_machine = cur_machine + 1
 		BUTTONS[tuple(rect)] = {'type': 'machine', 'item': MACHINES[m]}
 
+class readinfosys(Thread):
+	def __init__ (self):
+		Thread.__init__(self)
+		self.message = ''
+		self.end = False
+	def run(self):
+		while(self.end == False):
+			time.sleep(60)
+			try:
+				iffile = open('/tmp/infosysdata', 'r')
+				print 'checking infosys file'
+				if iffile is not None:
+					data = ''
+					line = None
+					line = iffile.readline()
+					while(line):
+						data = data + line
+						line = iffile.readline()
+					iffile.close()
+					self.message = data
+			except:
+				c = 1	
+
 class checkibutton(Thread):
 	def __init__ (self):
 		Thread.__init__(self)
 		self.ibutton = ''
+		self.end = False
 	def run(self):
-		while(1):
+		while(self.end == False):
 			time.sleep(1)
 			try:
 				ibfile = open('/tmp/ibutton', "r")
