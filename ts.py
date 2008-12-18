@@ -227,7 +227,8 @@ def main():
 		clock.tick(20)
 
 def render_message(bg, message):
-	msg = pygame.Surface((800, 400))
+        fonting = pygame.font.Font(None, 30)
+	msg = pygame.Surface((800, 600))
 	msg.fill((255, 255, 255))
 	rect = msg.get_rect()
 	rect.left = 20
@@ -235,7 +236,7 @@ def render_message(bg, message):
 	lines = message.splitlines()
 	c = 0
 	for line in lines:
-		text = font.render(line, 1, (0, 0, 0))
+		text = fonting.render(line, 1, (0, 0, 0))
 		msg.blit(text, (0, c * 20))
 		c = c + 1
 	bg.blit(msg, rect)
