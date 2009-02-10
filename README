@@ -1,0 +1,5 @@
+Computer Science House's Drink Machine Touchscreens
+
+The main ts.py interface code was written in about two days by Angelo as a replacement to the aging opera+javascript+rails based solution. Composed of ugly hacks and the fact that Angelo was just learning python and pygame -- it could use some work. It crashes often.
+
+The drinkAPI.py was written by KJ to be an abstract drink connection library. Eventually it should probably branch in to it's own project.

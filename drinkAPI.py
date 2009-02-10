@@ -156,7 +156,7 @@ class User:
         if line.startswith('ibutton'):
             self.connectionSocket.sendall('ibutton ' + line[9:25] + '\n')
             data = ''
-            while data.find('\r\n') == - 1:
+            while data.find('\n') == - 1:
                 data += self.connectionSocket.recv(MAX_PACKET_SIZE)
             if data.find(MSG_OK) != - 1:
                 self.authed = True
@@ -167,7 +167,7 @@ class User:
     def authenticate_user_ibutton(self, ibutton):
       self.connectionSocket.sendall('ibutton ' + ibutton + '\n')
       data = ''
-      while data.find('\r\n') == -1:
+      while data.find('\n') == -1:
         data += self.connectionSocket.recv(MAX_PACKET_SIZE)
       if data.find(MSG_OK) != -1:
         self.authed = True
